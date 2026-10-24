@@ -410,11 +410,55 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
   // Mapa inicial
   baseMaps["OpenStreetMap"].addTo(map);
 
-  // Selector de mapas base
-  L.control.layers(baseMaps, null, {
+  // Capa de límites departamentales del Perú
+  const departmentLayer = L.geoJSON(null, {
+    style: {
+      color: "#202020",
+      weight: 1.5,
+      opacity: 0.9,
+      fillColor: "#ffffff",
+      fillOpacity: 0.03
+    },
+    onEachFeature: function (feature, layer) {
+      const props = feature.properties || {};
+      const name = props.DEPARTAMEN || "Departamento sin nombre";
+      const capital = props.CAPITAL || "No disponible";
+
+      layer.bindPopup(
+        "<b>Departamento: </b>" + name +
+        "<br><b>Capital: </b>" + capital
+      );
+
+      layer.bindTooltip(name, {
+        sticky: true,
+        direction: "auto"
+      });
+    }
+  });
+
+  // Selector de mapas base y capas superpuestas
+  L.control.layers(baseMaps, {
+    "Límites departamentales": departmentLayer
+  }, {
     collapsed: false,
     position: "topright"
   }).addTo(map);
+
+  // Cargar los límites sin bloquear los datos horarios
+  fetch("data/wrfchem/departamentos.geojson")
+    .then(response => {
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status);
+      }
+      return response.json();
+    })
+    .then(data => {
+      departmentLayer.addData(data);
+      departmentLayer.addTo(map);
+    })
+    .catch(error => {
+      console.error("No se pudieron cargar los límites departamentales:", error);
+    });
 
   let manifest = null;
   let currentLayer = L.layerGroup().addTo(map);
