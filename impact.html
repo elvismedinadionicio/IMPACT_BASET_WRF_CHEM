@@ -52,6 +52,49 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
   #map { min-height: 55vh; }
   #hour { min-width: 190px; max-width: 100%; }
 }
+
+/* Encabezado institucional ÍCARO */
+.titulo-principal {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 4px;
+  margin: 0;
+  color: #173b50;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.titulo-principal .nombre-plataforma {
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.titulo-principal span {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .titulo-principal {
+    column-gap: 8px;
+    row-gap: 5px;
+  }
+
+  .titulo-principal .nombre-plataforma {
+    font-size: 29px;
+  }
+
+  .titulo-principal span {
+    font-size: 13px;
+  }
+}
+
 </style>
 
 
@@ -124,7 +167,10 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
   <header class="encabezado-principal">
   <img class="logo-institucional" src="img/logo_Minam-Senamhi.png" alt="Logotipos del MINAM y SENAMHI">
   <div class="bloque-titulo">
-    <h1>PRONÓSTICO BASADO EN IMPACTOS ANTE LA OCURRENCIA DE INCENDIOS</h1>
+    <h1 class="titulo-principal">
+  <strong class="nombre-plataforma">ÍCARO</strong>
+  <span>Pronóstico basado en impactos ante la ocurrencia de incendios</span>
+</h1>
     
   </div>
 </header>
