@@ -380,30 +380,12 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 
   function colorForConcentration(value, max) {
     if (value == null || !Number.isFinite(value) || value < 0) return null;
-
-    // Escala continua basada en intervalos de 5 µg/m³.
-    const colors = [
-      [44, 123, 182],    // Azul
-      [171, 217, 233],   // Celeste
-      [255, 255, 191],   // Amarillo claro
-      [253, 174, 97],    // Naranja
-      [215, 25, 28]      // Rojo
-    ];
-
-    const upper = Math.max(5, Math.ceil(max / 5) * 5);
-    const bins = Math.max(1, upper / 5);
-    const bin = Math.min(bins - 1, Math.floor(value / 5));
-    const fraction = bins <= 1 ? 0 : bin / (bins - 1);
-    const position = fraction * (colors.length - 1);
-    const left = Math.floor(position);
-    const right = Math.min(colors.length - 1, left + 1);
-    const t = position - left;
-
-    const rgb = colors[left].map((channel, i) =>
-      Math.round(channel + (colors[right][i] - channel) * t)
-    );
-
-    return "#" + rgb.map(v => v.toString(16).padStart(2, "0")).join("");
+    if (value <= 9) return "#2c7bb6";
+    if (value <= 35.4) return "#00a6ca";
+    if (value <= 55.4) return "#ffff8c";
+    if (value <= 125.4) return "#fdae61";
+    if (value <= 225.4) return "#f46d43";
+    return "#d7191c";
   }
   function colorForAQI(value) {
     if (value == null) return null;
@@ -422,7 +404,6 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
     let items;
 
     if (product === "aqi") {
-      // Mantener intactas las categorías AQI existentes.
       items = [
         ["#00e400", "Bueno (0–50)"],
         ["#ffff00", "Moderado (51–100)"],
@@ -432,26 +413,14 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
         ["#7e0023", "Peligroso (301–500)"]
       ];
     } else {
-      // Seis rangos fijos en cantidad, ajustados al máximo observado.
-      const upper = Math.max(
-        5,
-        Math.ceil((Number.isFinite(max) && max > 0 ? max : 5) / 5) * 5
-      );
-      const step = upper / 6;
-      items = [];
-
-      for (let i = 0; i < 6; i++) {
-        const lower = i * step;
-        const upperBin = (i + 1) * step;
-        const color = colorForConcentration(
-          (lower + upperBin) / 2,
-          upper
-        );
-
-        const format = n => Number(n.toFixed(1)).toString();
-        const label = `${format(lower)}–${format(upperBin)} µg/m³`;
-        items.push([color, label]);
-      }
+      items = [
+        ["#2c7bb6", "0–9 µg/m³"],
+        ["#00a6ca", ">9–35.4 µg/m³"],
+        ["#ffff8c", ">35.4–55.4 µg/m³"],
+        ["#fdae61", ">55.4–125.4 µg/m³"],
+        ["#f46d43", ">125.4–225.4 µg/m³"],
+        ["#d7191c", ">225.4–600+ µg/m³"]
+      ];
     }
 
     for (const [color, label] of items) {
