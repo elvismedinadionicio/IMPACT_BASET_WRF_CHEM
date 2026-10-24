@@ -363,6 +363,10 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 
   const $ = id => document.getElementById(id);
   const map = L.map("map").setView([-9.2, -75.0], 5);
+// Orden de visualización: mapa base < departamentos < concentraciones.
+map.createPane("departmentPane");
+map.getPane("departmentPane").style.zIndex = 350;
+
 
   // Mapas base disponibles. Cada proveedor conserva su atribución.
   const baseMaps = {
@@ -412,12 +416,13 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 
   // Capa de límites departamentales del Perú
   const departmentLayer = L.geoJSON(null, {
+      pane: "departmentPane",
     style: {
       color: "#202020",
       weight: 1.5,
       opacity: 0.9,
       fillColor: "#ffffff",
-      fillOpacity: 0.03
+      fillOpacity: 0
     },
     onEachFeature: function (feature, layer) {
       const props = feature.properties || {};
