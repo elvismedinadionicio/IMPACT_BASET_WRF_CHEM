@@ -53,42 +53,67 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 }
 </style>
 
-<style>
-.encabezado-principal {
-  text-align: center;
-  width: 100%;
-  margin: 0 auto 24px;
-}
-.encabezado-principal h1 {
-  text-align: center;
-  margin-bottom: 8px;
-}
-.encabezado-principal p {
-  text-align: center;
-  margin-top: 0;
-  font-size: 1rem;
-}
-</style>
+
+
+
+
 
 
 <style>
 .encabezado-principal {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 28px;
   width: 100%;
-  margin: 0 auto 12px;
-  padding: 18px 16px 12px;
   box-sizing: border-box;
+  padding: 18px 28px;
+  margin: 0;
+  background: #ffffff;
+  color: #111111;
+  border-bottom: 1px solid #e5e7eb;
+}
+.encabezado-principal .logo-institucional {
+  display: block;
+  width: 260px;
+  max-width: 28%;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.encabezado-principal .bloque-titulo {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
 }
 .encabezado-principal h1 {
-  text-align: center;
   margin: 0 0 8px;
+  color: #111111;
+  font-size: clamp(20px, 2vw, 30px);
   line-height: 1.25;
+  font-weight: 700;
 }
 .encabezado-principal p {
-  text-align: center;
   margin: 0;
-  font-size: 1rem;
+  color: #333333;
+  font-size: 16px;
   line-height: 1.4;
+}
+@media (max-width: 700px) {
+  .encabezado-principal {
+    gap: 12px;
+    padding: 14px;
+  }
+  .encabezado-principal .logo-institucional {
+    width: 115px;
+    max-width: 30%;
+  }
+  .encabezado-principal h1 {
+    font-size: 17px;
+  }
+  .encabezado-principal p {
+    font-size: 13px;
+  }
 }
 </style>
 
@@ -96,10 +121,13 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 <body>
 <header>
   <header class="encabezado-principal">
-  <h1>PRONÓSTICO BASADO EN IMPACTOS ANTE LA OCURRENCIA DE INCENDIOS</h1>
-  <p>Subdirección de Vigilancia y Evaluación del Ambiente Atmosférico</p>
+  <img class="logo-institucional" src="img/logo_Minam-Senamhi.png" alt="Logotipos del MINAM y SENAMHI">
+  <div class="bloque-titulo">
+    <h1>PRONÓSTICO BASADO EN IMPACTOS ANTE LA OCURRENCIA DE INCENDIOS</h1>
+    <p>Vigilancia ambiental atmosférica · Simulación WRF-Chem</p>
+  </div>
 </header>
-  <p>Subdirección de Vigilancia y Evaluación del Ambiente Atmosférico</p>
+  
 </header>
   <p>Vigilancia ambiental atmosférica · Simulación WRF-Chem</p>
 </header>
