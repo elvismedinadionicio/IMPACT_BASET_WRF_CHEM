@@ -1,46 +1,59 @@
-# IMPACT BASET - WRF-Chem
+# IMPACT_BASET_WRF_CHEM
 
-Aplicación independiente para visualizar concentraciones modeladas
-de PM10 y PM2.5.
+### Plataforma de Pronóstico Basado en Impactos mediante WRF-Chem
 
-## Estructura
+## Descripción
 
-- impact.html: interfaz web independiente.
-- scripts/diagnosticar_wrfchem.py: inventario de variables, unidades y dimensiones.
-- scripts/procesar_wrfchem.py: procesamiento de grillas horarias.
-- scripts/ejecutar.sh: ejecución controlada del procesamiento.
-- data/wrfchem/manifest.json: metadatos y lista de horas.
-- data/wrfchem/hour_XXXX.json: datos por hora.
-- logs/: registros de ejecución.
+Plataforma web para visualizar pronósticos de calidad del aire y analizar impactos potenciales en la población y el territorio, a partir de resultados del modelo WRF-Chem (*Weather Research and Forecasting Model coupled with Chemistry*).
 
-## Entrada
+La aplicación permite visualizar concentraciones modeladas de PM10 y PM2.5 mediante datos horarios procesados previamente.
 
-/home/sea/WRF_CHEM/PERU_20240909/RUN_CAMS_MOZCART_20240908
+## Estructura del proyecto
 
-## Ejecución
+- `index.html`: página principal.
+- `impact.html`: interfaz de visualización.
+- `data/wrfchem/manifest.json`: metadatos y horas disponibles.
+- `data/wrfchem/hour_XXXX.json`: datos procesados por hora.
+- `scripts/diagnosticar_wrfchem.py`: diagnóstico de variables, unidades y dimensiones.
+- `scripts/procesar_wrfchem.py`: procesamiento de grillas horarias.
+- `scripts/ejecutar.sh`: ejecución del procesamiento.
 
-1. Revisar las variables con el diagnóstico.
-2. Verificar que las variables seleccionadas están expresadas en µg/m³.
-3. Ejecutar scripts/ejecutar.sh.
-4. Abrir el visor mediante un servidor HTTP local.
+## Datos de entrada
 
-Si los nombres de las variables no se detectan automáticamente:
+Directorio local de procesamiento:
 
+`/home/sea/WRF_CHEM/PERU_20240909/RUN_CAMS_MOZCART_20240908`
+
+Esta ruta corresponde al entorno de NUNA y no forma parte de los archivos estáticos publicados en GitHub Pages.
+
+## Procesamiento
+
+1. Revisar las variables disponibles mediante el diagnóstico.
+2. Verificar las variables seleccionadas y sus unidades.
+3. Ejecutar `scripts/ejecutar.sh`.
+4. Comprobar los archivos horarios generados.
+5. Probar la aplicación mediante un servidor HTTP local.
+
+Si los nombres de las variables no se detectan automáticamente, pueden configurarse así:
+
+```bash
 PM25_VAR=nombre_variable_pm25 \
 PM10_VAR=nombre_variable_pm10 \
 bash scripts/ejecutar.sh
+```
 
-Los nombres anteriores son ejemplos: sustituirlos por los nombres
-reales confirmados en el diagnóstico.
+Los nombres anteriores son ejemplos y deben sustituirse por los nombres reales confirmados en el diagnóstico.
 
-## AQI
+## Publicación web
 
-El AQI estimado requiere 24 horas consecutivas válidas por celda.
-Los datos faltantes no se sustituyen por cero. El producto de modelamiento
-no constituye una medición oficial de calidad del aire.
+GitHub Pages publica archivos estáticos. No ejecuta directamente los scripts Python ni los procesos de modelamiento. Para actualizar la aplicación, primero se procesan los datos en NUNA y luego se publican los archivos actualizados.
+
+## Consideraciones sobre el AQI
+
+El AQI estimado requiere 24 horas consecutivas válidas por celda. Los datos faltantes no se sustituyen por cero. Los resultados del modelamiento no constituyen, por sí solos, mediciones oficiales de calidad del aire.
 
 ## Seguridad
 
-Este proyecto no modifica los archivos de SORIAN.
-No ejecutar con privilegios de administrador salvo que exista
-una necesidad operativa justificada.
+- No modificar los archivos del proyecto SORIAN.
+- No ejecutar procesos con privilegios de administrador sin una necesidad operativa justificada.
+- Verificar que los archivos publicados no contengan información sensible ni archivos internos innecesarios.
