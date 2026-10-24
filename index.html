@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IMPACT BASET | WRF-Chem</title>
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+  font-family: system-ui, sans-serif;
+  color: #18212b;
+  background: #f4f6f8;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+header {
+  padding: 16px 22px;
+  background: #153b50;
+  color: white;
+}
+header h1 { margin: 0 0 4px; font-size: 23px; }
+header p { margin: 0; font-size: 13px; opacity: .9; }
+main { max-width: 1500px; margin: auto; padding: 14px; }
+.controls {
+  display: flex; flex-wrap: wrap; align-items: end; gap: 12px;
+  padding: 14px; background: white; border-radius: 10px;
+  box-shadow: 0 1px 5px #0001; margin-bottom: 12px;
+}
+label { display: grid; gap: 5px; font-size: 12px; font-weight: 650; }
+select, button, input {
+  font: inherit; padding: 8px; border: 1px solid #ccd4da;
+  border-radius: 6px; background: white;
+}
+#hour { min-width: 240px; }
+button { cursor: pointer; }
+#map { height: min(68vh, 720px); min-height: 380px;
+  background: #dce6eb; border-radius: 10px; }
+.info {
+  background: white; margin-top: 12px; padding: 14px;
+  border-radius: 10px; line-height: 1.5;
+}
+#legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.swatch { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.chip { width: 15px; height: 15px; border-radius: 3px; display: inline-block; }
+#status { font-size: 13px; margin: 6px 0; }
+.warning { color: #8a3a00; font-weight: 650; }
+footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
+@media(max-width:650px) {
+  main { padding: 8px; }
+  #map { min-height: 55vh; }
+  #hour { min-width: 190px; max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>IMPACT BASET</h1>
+  <p>Vigilancia ambiental atmosférica · Simulación WRF-Chem</p>
+</header>
+<main>
+  <section class="controls">
+    <label>Contaminante
+      <select id="pollutant">
+        <option value="PM25">PM2.5</option>
+        <option value="PM10">PM10</option>
+      </select>
+    </label>
+    <label>Producto
+      <select id="product">
+        <option value="concentration">Concentración (µg/m³)</option>
+        <option value="aqi">AQI estimado (24 horas)</option>
+      </select>
+    </label>
+    <label>Fecha y hora UTC
+      <select id="hour"></select>
+    </label>
+    <button id="play" type="button">▶ Reproducir</button>
+    <label>Opacidad
+      <input id="opacity" type="range" min="10" max="100" value="78">
+    </label>
+  </section>
+
+  <div id="status" role="status">Cargando datos...</div>
+  <div id="map"></div>
+
+  <section class="info">
+    <strong id="legendTitle">Leyenda</strong>
+    <div id="legend"></div>
+    <p id="details">Selecciona una celda para consultar sus valores.</p>
+    <p id="aqiStatus" class="warning"></p>
+  </section>
+
+  <footer>
+    Los resultados representan simulaciones de WRF-Chem, no mediciones
+    de estaciones. La categoría AQI es una estimación basada en promedios
+    modelados de 24 horas y no constituye un AQI oficial. Verificar la
+    configuración del modelo, las unidades, los datos faltantes y la
+    validez de los resultados antes de su uso operativo.
+  </footer>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const map = L.map("map").setView([-9.2, -75.0], 5);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 12,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+
+  let manifest = null;
+  let currentLayer = L.layerGroup().addTo(map);
+  let currentData = null;
+  let playTimer = null;
+  let currentIndex = 0;
+
+  const fmt = v => v == null || !Number.isFinite(Number(v))
+    ? "Sin dato" : Number(v).toFixed(2);
+
+  function colorForConcentration(value, max) {
+    if (value == null || !Number.isFinite(value)) return null;
+    const fraction = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+    if (fraction <= .2) return "#2c7bb6";
+    if (fraction <= .4) return "#abd9e9";
+    if (fraction <= .6) return "#ffffbf";
+    if (fraction <= .8) return "#fdae61";
+    return "#d7191c";
+  }
+
+  function colorForAQI(value) {
+    if (value == null) return null;
+    if (value <= 50) return "#00e400";
+    if (value <= 100) return "#ffff00";
+    if (value <= 150) return "#ff7e00";
+    if (value <= 200) return "#ff0000";
+    if (value <= 300) return "#8f3f97";
+    return "#7e0023";
+  }
+
+  function addLegend(product, max) {
+    const legend = $("legend");
+    legend.replaceChildren();
+
+    const items = product === "aqi"
+      ? [
+          ["#00e400", "Bueno (0–50)"],
+          ["#ffff00", "Moderado (51–100)"],
+          ["#ff7e00", "Insalubre para grupos sensibles (101–150)"],
+          ["#ff0000", "Insalubre (151–200)"],
+          ["#8f3f97", "Muy insalubre (201–300)"],
+          ["#7e0023", "Peligroso (301–500)"]
+        ]
+      : [
+          ["#2c7bb6", `Bajo (0–${(max*.2).toFixed(1)})`],
+          ["#abd9e9", `${(max*.2).toFixed(1)}–${(max*.4).toFixed(1)}`],
+          ["#ffffbf", `${(max*.4).toFixed(1)}–${(max*.6).toFixed(1)}`],
+          ["#fdae61", `${(max*.6).toFixed(1)}–${(max*.8).toFixed(1)}`],
+          ["#d7191c", `Alto (> ${(max*.8).toFixed(1)})`]
+        ];
+
+    for (const [color, label] of items) {
+      const span = document.createElement("span");
+      span.className = "swatch";
+      const chip = document.createElement("i");
+      chip.className = "chip";
+      chip.style.background = color;
+      span.append(chip, document.createTextNode(label));
+      legend.append(span);
+    }
+  }
+
+  // Estima límites de las celdas a partir de los centros de la grilla.
+  function cellBounds(lat, lon, row, col) {
+    const ny = lat.length, nx = lat[0].length;
+    const dLat = row + 1 < ny
+      ? lat[row + 1][col] - lat[row][col]
+      : row > 0 ? lat[row][col] - lat[row - 1][col] : .1;
+    const dLon = col + 1 < nx
+      ? lon[row][col + 1] - lon[row][col]
+      : col > 0 ? lon[row][col] - lon[row][col - 1] : .1;
+
+    return [
+      [lat[row][col] - dLat / 2, lon[row][col] - dLon / 2],
+      [lat[row][col] + dLat / 2, lon[row][col] + dLon / 2]
+    ];
+  }
+
+  function render() {
+    if (!manifest || !currentData) return;
+
+    currentLayer.clearLayers();
+
+    const pollutant = $("pollutant").value;
+    const product = $("product").value;
+    const grid = manifest.grid;
+    const ny = grid.ny, nx = grid.nx;
+    const values = product === "aqi"
+      ? currentData["AQI_" + pollutant]
+      : currentData[pollutant];
+
+    if (!Array.isArray(values)) {
+      $("status").textContent = "El producto seleccionado no está disponible.";
+      return;
+    }
+
+    const numeric = values.filter(v => v != null && Number.isFinite(v));
+    const max = numeric.length ? Math.max(...numeric) : 0;
+
+    addLegend(product, max);
+    $("legendTitle").textContent = product === "aqi"
+      ? "Categorías AQI estimadas" : `Concentración ${pollutant} (µg/m³)`;
+
+    let valid = 0;
+    const opacity = Number($("opacity").value) / 100;
+
+    for (let row = 0; row < ny; row++) {
+      for (let col = 0; col < nx; col++) {
+        const index = row * nx + col;
+        const value = values[index];
+
+        if (value == null || !Number.isFinite(value)) continue;
+
+        const color = product === "aqi"
+          ? colorForAQI(value)
+          : colorForConcentration(value, max);
+
+        if (!color) continue;
+
+        const bounds = cellBounds(grid.lat, grid.lon, row, col);
+        const rectangle = L.rectangle(bounds, {
+          color,
+          fillColor: color,
+          weight: 0,
+          fillOpacity: opacity,
+          interactive: true
+        });
+
+        rectangle.bindPopup(
+          `<b>${pollutant}</b><br>` +
+          `Producto: ${product === "aqi" ? "AQI estimado" : "Concentración"}<br>` +
+          `Valor: ${fmt(value)}${product === "aqi" ? "" : " µg/m³"}<br>` +
+          `Latitud: ${fmt(grid.lat[row][col])}<br>` +
+          `Longitud: ${fmt(grid.lon[row][col])}<br>` +
+          `Hora UTC: ${currentData.time}`
+        );
+
+        rectangle.addTo(currentLayer);
+        valid++;
+      }
+    }
+
+    $("status").textContent =
+      `${currentData.time} UTC · ${valid.toLocaleString()} celdas válidas`;
+
+    $("aqiStatus").textContent = product === "aqi"
+      ? (currentData.aqi_status || "Verifica la disponibilidad del AQI.")
+      : "";
+
+    $("details").textContent = product === "aqi"
+      ? "El AQI se calcula a partir de promedios modelados de 24 horas."
+      : "Haz clic en una celda para consultar la concentración y las coordenadas.";
+
+    if (!valid) {
+      $("status").textContent += " · No hay valores válidos para este producto.";
+    }
+  }
+
+  async function loadHour(index) {
+    currentIndex = index;
+    const item = manifest.times[index];
+
+    $("hour").value = String(index);
+    $("status").textContent = `Cargando ${item.time}...`;
+
+    try {
+      const response = await fetch("data/wrfchem/" + item.file);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      currentData = await response.json();
+      render();
+    } catch (error) {
+      $("status").textContent = `Error al cargar datos: ${error.message}`;
+    }
+  }
+
+  async function init() {
+    try {
+      const response = await fetch("data/wrfchem/manifest.json");
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      manifest = await response.json();
+
+      if (!manifest.times || !manifest.times.length) {
+        throw new Error("El manifest no contiene horas disponibles.");
+      }
+
+      $("hour").replaceChildren();
+
+      manifest.times.forEach((item, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = item.time.replace("T", " ") + " UTC";
+        $("hour").append(option);
+      });
+
+      const lat = manifest.grid.lat.flat().filter(Number.isFinite);
+      const lon = manifest.grid.lon.flat().filter(Number.isFinite);
+
+      if (lat.length && lon.length) {
+        map.fitBounds([
+          [Math.min(...lat), Math.min(...lon)],
+          [Math.max(...lat), Math.max(...lon)]
+        ]);
+      }
+
+      $("hour").addEventListener("change", () => {
+        loadHour(Number($("hour").value));
+      });
+
+      $("pollutant").addEventListener("change", render);
+      $("product").addEventListener("change", render);
+      $("opacity").addEventListener("input", render);
+
+      $("play").addEventListener("click", () => {
+        if (playTimer) {
+          clearInterval(playTimer);
+          playTimer = null;
+          $("play").textContent = "▶ Reproducir";
+          return;
+        }
+
+        $("play").textContent = "Ⅱ Pausar";
+        playTimer = setInterval(() => {
+          const next = (currentIndex + 1) % manifest.times.length;
+          loadHour(next);
+        }, 1200);
+      });
+
+      await loadHour(0);
+    } catch (error) {
+      $("status").textContent =
+        `No se pudo iniciar el visor: ${error.message}. ` +
+        "Ejecuta primero el procesamiento y utiliza un servidor HTTP.";
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
