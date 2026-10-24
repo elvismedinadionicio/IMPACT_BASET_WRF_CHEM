@@ -95,6 +95,72 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
   }
 }
 
+
+/* Ajustes del encabezado de ÍCARO */
+.encabezado-principal {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.encabezado-principal .logo-institucional {
+  width: 240px;
+  max-width: none;
+  height: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.encabezado-principal .bloque-titulo {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.encabezado-principal .titulo-principal {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+.encabezado-principal .nombre-plataforma {
+  display: block;
+  color: #0b3b91;
+  font-weight: 800;
+  text-align: center;
+}
+
+.encabezado-principal .titulo-principal span {
+  display: block;
+  font-weight: 800;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .encabezado-principal {
+    gap: 10px;
+  }
+
+  .encabezado-principal .logo-institucional {
+    width: 192px;
+    max-width: none;
+  }
+
+  .encabezado-principal .bloque-titulo {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .encabezado-principal .nombre-plataforma {
+    font-size: 20px;
+  }
+
+  .encabezado-principal .titulo-principal span {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+}
+
 </style>
 
 
