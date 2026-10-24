@@ -287,6 +287,8 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 }
 </style>
 
+
+<!-- Preparación de visualización WRF-Chem: datos originales preservados. -->
 </head>
 <body>
 <header>
@@ -478,6 +480,9 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
     ];
   }
 
+
+  // Renderizado interpolado para concentración; los datos originales
+  // permanecen intactos y siguen disponibles en los popups por celda.
   function render() {
     if (!manifest || !currentData) return;
 
@@ -498,52 +503,140 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 
     const numeric = values.filter(v => v != null && Number.isFinite(v));
     const max = numeric.length ? Math.max(...numeric) : 0;
-
     addLegend(product, max);
+
     $("legendTitle").textContent = product === "aqi"
-      ? "Categorías AQI estimadas" : `Concentración ${pollutant} (µg/m³)`;
+      ? "Categorías AQI estimadas"
+      : `Concentración ${pollutant} (µg/m³)`;
 
-    let valid = 0;
     const opacity = Number($("opacity").value) / 100;
+    let valid = 0;
 
+    // La imagen interpolada solo se usa para concentración.
+    // Se interpola en el índice de la grilla; no crea nueva resolución científica.
+    if (product !== "aqi" && nx > 1 && ny > 1) {
+      const canvas = document.createElement("canvas");
+      const scale = 3;
+      canvas.width = (nx - 1) * scale + 1;
+      canvas.height = (ny - 1) * scale + 1;
+      const ctx = canvas.getContext("2d");
+      const image = ctx.createImageData(canvas.width, canvas.height);
+
+      function colorRgb(hex) {
+        const h = hex.replace("#", "");
+        return [
+          parseInt(h.substring(0, 2), 16),
+          parseInt(h.substring(2, 4), 16),
+          parseInt(h.substring(4, 6), 16)
+        ];
+      }
+
+      function valueAt(r, c) {
+        const v = values[r * nx + c];
+        return v != null && Number.isFinite(v) ? v : null;
+      }
+
+      for (let py = 0; py < canvas.height; py++) {
+        const gy = py / scale;
+        const r0 = Math.min(ny - 1, Math.floor(gy));
+        const r1 = Math.min(ny - 1, r0 + 1);
+        const fy = gy - r0;
+
+        for (let px = 0; px < canvas.width; px++) {
+          const gx = px / scale;
+          const c0 = Math.min(nx - 1, Math.floor(gx));
+          const c1 = Math.min(nx - 1, c0 + 1);
+          const fx = gx - c0;
+
+          const corners = [
+            [valueAt(r0, c0), (1-fx)*(1-fy)],
+            [valueAt(r0, c1), fx*(1-fy)],
+            [valueAt(r1, c0), (1-fx)*fy],
+            [valueAt(r1, c1), fx*fy]
+          ].filter(item => item[0] !== null);
+
+          const offset = (py * canvas.width + px) * 4;
+          if (!corners.length) {
+            image.data[offset + 3] = 0;
+            continue;
+          }
+
+          // Renormalizar el peso si alguna esquina carece de datos.
+          const weightSum = corners.reduce((s, item) => s + item[1], 0);
+          const v = weightSum > 0
+            ? corners.reduce((s, item) => s + item[0] * item[1], 0) / weightSum
+            : corners[0][0];
+
+          const rgb = colorRgb(colorForConcentration(v, max));
+          image.data[offset] = rgb[0];
+          image.data[offset + 1] = rgb[1];
+          image.data[offset + 2] = rgb[2];
+          image.data[offset + 3] = Math.round(255 * opacity);
+        }
+      }
+
+      ctx.putImageData(image, 0, 0);
+
+      // Extensión geográfica de la grilla. La imagen es una aproximación
+      // cartográfica; los popups mantienen las coordenadas originales.
+      const latitudes = grid.lat.flat().filter(Number.isFinite);
+      const longitudes = grid.lon.flat().filter(Number.isFinite);
+
+      if (latitudes.length && longitudes.length) {
+        const bounds = [
+          [Math.min(...latitudes), Math.min(...longitudes)],
+          [Math.max(...latitudes), Math.max(...longitudes)]
+        ];
+
+        L.imageOverlay(canvas.toDataURL("image/png"), bounds, {
+          opacity: 1,
+          interactive: false
+        }).addTo(currentLayer);
+      }
+    }
+
+    // Capa transparente para mantener la consulta de cada celda original.
     for (let row = 0; row < ny; row++) {
       for (let col = 0; col < nx; col++) {
         const index = row * nx + col;
         const value = values[index];
-
         if (value == null || !Number.isFinite(value)) continue;
 
+        valid++;
         const color = product === "aqi"
           ? colorForAQI(value)
           : colorForConcentration(value, max);
 
         if (!color) continue;
 
-        const bounds = cellBounds(grid.lat, grid.lon, row, col);
-        const rectangle = L.rectangle(bounds, {
-          color,
-          fillColor: color,
-          weight: 0,
-          fillOpacity: opacity,
-          interactive: true
-        });
+        const rectangle = L.rectangle(
+          cellBounds(grid.lat, grid.lon, row, col),
+          {
+            color: "#000000",
+            opacity: 0,
+            weight: 0,
+            fillColor: color,
+            fillOpacity: product === "aqi" ? opacity : 0,
+            interactive: true
+          }
+        );
 
         rectangle.bindPopup(
           `<b>${pollutant}</b><br>` +
           `Producto: ${product === "aqi" ? "AQI estimado" : "Concentración"}<br>` +
-          `Valor: ${fmt(value)}${product === "aqi" ? "" : " µg/m³"}<br>` +
+          `Valor original: ${fmt(value)}${product === "aqi" ? "" : " µg/m³"}<br>` +
           `Latitud: ${fmt(grid.lat[row][col])}<br>` +
           `Longitud: ${fmt(grid.lon[row][col])}<br>` +
           `Hora UTC: ${currentData.time}`
         );
 
         rectangle.addTo(currentLayer);
-        valid++;
       }
     }
 
     $("status").textContent =
-      `${currentData.time} UTC · ${valid.toLocaleString()} celdas válidas`;
+      `${currentData.time} UTC · ${valid.toLocaleString()} celdas con datos` +
+      (product === "aqi" ? "" : " · Visualización interpolada");
 
     $("aqiStatus").textContent = product === "aqi"
       ? (currentData.aqi_status || "Verifica la disponibilidad del AQI.")
@@ -551,7 +644,7 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
 
     $("details").textContent = product === "aqi"
       ? "El AQI se calcula a partir de promedios modelados de 24 horas."
-      : "Haz clic en una celda para consultar la concentración y las coordenadas.";
+      : "Colores suavizados por interpolación visual. Haz clic para consultar el valor original de la celda.";
 
     if (!valid) {
       $("status").textContent += " · No hay valores válidos para este producto.";
