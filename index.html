@@ -420,7 +420,7 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
     let items;
 
     if (product === "aqi") {
-      // Se mantienen las categorías AQI actuales.
+      // Se conservan intactas las categorías AQI existentes.
       items = [
         ["#00e400", "Bueno (0–50)"],
         ["#ffff00", "Moderado (51–100)"],
@@ -430,16 +430,31 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
         ["#7e0023", "Peligroso (301–500)"]
       ];
     } else {
-      const upper = Math.max(5, Math.ceil(max / 5) * 5);
+      const upper = Math.max(
+        5,
+        Math.ceil((Number.isFinite(max) && max > 0 ? max : 5) / 5) * 5
+      );
+      const totalBins = Math.ceil(upper / 5);
+      const maxVisibleBins = 10;
       items = [];
 
-      for (let lower = 0; lower < upper; lower += 5) {
-        const upperBin = lower + 5;
-        const color = colorForConcentration(lower + 0.01, upper);
-        items.push([
-          color,
-          `${lower}–${upperBin} µg/m³`
-        ]);
+      if (totalBins <= maxVisibleBins) {
+        for (let lower = 0; lower < upper; lower += 5) {
+          const color = colorForConcentration(lower + 0.01, upper);
+          items.push([color, `${lower}–${lower + 5} µg/m³`]);
+        }
+      } else {
+        // Nueve intervalos de 5 y un último intervalo abierto.
+        for (let lower = 0; lower < 45; lower += 5) {
+          const color = colorForConcentration(lower + 0.01, upper);
+          items.push([color, `${lower}–${lower + 5} µg/m³`]);
+        }
+
+        const lastColor = colorForConcentration(
+          Math.min(upper, 45 + (upper - 45) / 2),
+          upper
+        );
+        items.push([lastColor, "≥ 45 µg/m³"]);
       }
     }
 
