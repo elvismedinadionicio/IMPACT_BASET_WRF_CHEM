@@ -336,6 +336,11 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
         <option value="PM10">PM₁₀</option>
       </select>
     </label>
+    <label>Departamento
+      <select id="department">
+        <option value="">Todos los departamentos</option>
+      </select>
+    </label>
     <label>Producto
       <select id="product">
         <option value="concentration">Concentración (µg/m³)</option>
@@ -362,6 +367,13 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
     <div id="legend"></div>
     <p id="details">Selecciona una celda para consultar sus valores.</p>
     <p id="aqiStatus" class="warning"></p>
+    <section id="departmentSummary" aria-live="polite">
+      <h3 id="departmentSummaryTitle">Resumen departamental</h3>
+      <p id="departmentSummaryStatus">
+        Selecciona un departamento para consultar sus estadísticas.
+      </p>
+      <div id="departmentSummaryContent"></div>
+    </section>
   </section>
 
     </div>
@@ -480,6 +492,7 @@ map.getPane("departmentPane").style.zIndex = 350;
     });
 
   let manifest = null;
+  let departmentalSummary = null;
   let currentLayer = L.layerGroup().addTo(map);
   let currentData = null;
   let playTimer = null;
@@ -487,6 +500,121 @@ map.getPane("departmentPane").style.zIndex = 350;
 
   const fmt = v => v == null || !Number.isFinite(Number(v))
     ? "Sin dato" : Number(v).toFixed(2);
+
+  function renderDepartmentSummary() {
+    const selector = $("department");
+    const nombreSeleccionado = selector.value;
+    const titulo = $("departmentSummaryTitle");
+    const estado = $("departmentSummaryStatus");
+    const contenido = $("departmentSummaryContent");
+
+    contenido.replaceChildren();
+
+    if (!departmentalSummary || !departmentalSummary.horas.length) {
+      titulo.textContent = "Resumen departamental";
+      estado.textContent = "No se ha cargado el resumen departamental.";
+      return;
+    }
+
+    const hora = departmentalSummary.horas[currentIndex];
+    if (!hora) {
+      estado.textContent = "No hay resumen para la hora seleccionada.";
+      return;
+    }
+
+    const pollutant = $("pollutant").value;
+    const infoVariable = pollutant === "PM25" ? "PM25" : "PM10";
+    const departamento = hora.departamentos.find(d =>
+      d.nombre === nombreSeleccionado
+    );
+
+    titulo.textContent = nombreSeleccionado
+      ? `Resumen: ${nombreSeleccionado}`
+      : "Resumen departamental";
+
+    estado.textContent =
+      `${hora.time} UTC · ${pollutant === "PM25" ? "PM2.5" : "PM10"} · ` +
+      "Clasificación horaria estimada con puntos de corte EPA.";
+
+    const departamentos = nombreSeleccionado
+      ? (departamento ? [departamento] : [])
+      : hora.departamentos;
+
+    if (!departamentos.length) {
+      estado.textContent += " No hay datos para la selección.";
+      return;
+    }
+
+    const tabla = document.createElement("table");
+    tabla.style.width = "100%";
+    tabla.style.borderCollapse = "collapse";
+
+    const encabezado = document.createElement("tr");
+    for (const texto of [
+      "Departamento", "Promedio (µg/m³)", "Máximo (µg/m³)",
+      "Celdas válidas", "Categoría predominante"
+    ]) {
+      const th = document.createElement("th");
+      th.textContent = texto;
+      th.style.textAlign = "left";
+      th.style.padding = "5px";
+      encabezado.appendChild(th);
+    }
+    tabla.appendChild(encabezado);
+
+    for (const dep of departamentos) {
+      const dato = dep.contaminantes[infoVariable];
+      const categorias = dato.categorias || {};
+      const predominante = Object.entries(categorias)
+        .filter(([nombre]) => nombre !== "Sin datos")
+        .sort((a, b) => b[1] - a[1])[0];
+
+      const tr = document.createElement("tr");
+      const valores = [
+        dep.nombre,
+        dato.promedio == null ? "Sin datos" : dato.promedio.toFixed(2),
+        dato.maximo == null ? "Sin datos" : dato.maximo.toFixed(2),
+        `${dato.puntos_validos} / ${dep.puntos_malla}`,
+        predominante && predominante[1] > 0
+          ? `${predominante[0]} (${dato.porcentajes[predominante[0]]}%)`
+          : "Sin clasificación"
+      ];
+
+      for (const valor of valores) {
+        const td = document.createElement("td");
+        td.textContent = String(valor);
+        td.style.padding = "5px";
+        td.style.borderTop = "1px solid #ddd";
+        tr.appendChild(td);
+      }
+      tabla.appendChild(tr);
+
+      if (nombreSeleccionado) {
+        const subtitulo = document.createElement("h4");
+        subtitulo.textContent = "Distribución por categoría";
+        contenido.appendChild(subtitulo);
+
+        for (const [categoria, cantidad] of Object.entries(categorias)) {
+          const fila = document.createElement("p");
+          const porcentaje = dato.porcentajes[categoria];
+          fila.textContent =
+            `${categoria}: ${cantidad} celdas` +
+            (porcentaje == null ? "" : ` (${porcentaje}%)`);
+          fila.style.margin = "4px 0";
+          contenido.appendChild(fila);
+        }
+      }
+    }
+
+    contenido.prepend(tabla);
+
+    const nota = document.createElement("p");
+    nota.textContent =
+      "Nota: clasificación horaria orientativa. Los puntos de corte " +
+      "EPA para partículas se definen para promedios de 24 horas. " +
+      "No representa AQI oficial horario ni población expuesta.";
+    contenido.appendChild(nota);
+  }
 
   function colorForConcentration(value, max) {
     if (value == null || !Number.isFinite(value) || value < 0) return null;
@@ -566,6 +694,7 @@ map.getPane("departmentPane").style.zIndex = 350;
     if (!manifest || !currentData) return;
 
     currentLayer.clearLayers();
+    renderDepartmentSummary();
 
     const pollutant = $("pollutant").value;
     const product = $("product").value;
@@ -753,11 +882,32 @@ map.getPane("departmentPane").style.zIndex = 350;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       manifest = await response.json();
 
+      const summaryResponse = await fetch(
+        "data/wrfchem/resumen_aqi_departamental.json"
+      );
+      if (!summaryResponse.ok) {
+        throw new Error(
+          "No se pudo cargar el resumen departamental (HTTP " +
+          summaryResponse.status + ")"
+        );
+      }
+      departmentalSummary = await summaryResponse.json();
+
       if (!manifest.times || !manifest.times.length) {
         throw new Error("El manifest no contiene horas disponibles.");
       }
 
       $("hour").replaceChildren();
+
+      const departmentSelect = $("department");
+      for (const dep of (
+        departmentalSummary.horas[0]?.departamentos || []
+      )) {
+        const option = document.createElement("option");
+        option.value = dep.nombre;
+        option.textContent = dep.nombre;
+        departmentSelect.appendChild(option);
+      }
 
       manifest.times.forEach((item, index) => {
         const option = document.createElement("option");
@@ -782,6 +932,9 @@ map.getPane("departmentPane").style.zIndex = 350;
 
       $("pollutant").addEventListener("change", render);
       $("product").addEventListener("change", render);
+      $("department").addEventListener("change", () => {
+        renderDepartmentSummary();
+      });
       $("opacity").addEventListener("input", render);
 
       $("play").addEventListener("click", () => {
