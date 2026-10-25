@@ -222,6 +222,52 @@ footer { padding: 14px 4px; font-size: 12px; color: #52616b; }
   -webkit-text-fill-color: #0056b3 !important;
 }
 
+
+/* Tarjetas de distribución por categorías EPA */
+#departmentSummary { margin-top: 14px; width: 100%; box-sizing: border-box; }
+.epa-summary { width: 100%; box-sizing: border-box; }
+.epa-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 8px 0;
+}
+.epa-metric {
+  border: 1px solid #d1d5db;
+  background: #f8fafc;
+  padding: 7px 4px;
+  text-align: center;
+  min-width: 0;
+}
+.epa-metric span { display: block; font-size: 11px; line-height: 1.25; }
+.epa-metric strong { display: block; font-size: 17px; margin-top: 4px; overflow-wrap: anywhere; }
+.epa-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+}
+.epa-card {
+  min-width: 0;
+  min-height: 108px;
+  box-sizing: border-box;
+  border: 1px solid rgba(0,0,0,.18);
+  padding: 7px 3px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.epa-card-name { font-size: 11px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.epa-card-number { font-size: clamp(22px, 3vw, 30px); font-weight: 700; line-height: 1.2; margin: 5px 0 2px; }
+.epa-card-percent { font-size: 13px; font-weight: 700; }
+.epa-card-caption { font-size: 10px; }
+.epa-note { font-size: 11px; line-height: 1.4; color: #4b5563; margin-top: 8px; }
+@media (max-width: 420px) {
+  .epa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 </style>
 
 
@@ -510,8 +556,8 @@ map.getPane("departmentPane").style.zIndex = 350;
 
     contenido.replaceChildren();
 
-    if (!departmentalSummary || !departmentalSummary.horas.length) {
-      titulo.textContent = "Resumen departamental";
+    if (!departmentalSummary || !departmentalSummary.horas?.length) {
+      titulo.textContent = "Distribución por categorías EPA";
       estado.textContent = "No se ha cargado el resumen departamental.";
       return;
     }
@@ -523,96 +569,129 @@ map.getPane("departmentPane").style.zIndex = 350;
     }
 
     const pollutant = $("pollutant").value;
-    const infoVariable = pollutant === "PM25" ? "PM25" : "PM10";
-    const departamento = hora.departamentos.find(d =>
-      d.nombre === nombreSeleccionado
+    const variable = pollutant === "PM25" ? "PM25" : "PM10";
+    const departamento = hora.departamentos.find(
+      d => d.nombre === nombreSeleccionado
     );
-
-    titulo.textContent = nombreSeleccionado
-      ? `Resumen: ${nombreSeleccionado}`
-      : "Resumen departamental";
-
-    estado.textContent =
-      `${hora.time} UTC · ${pollutant === "PM25" ? "PM2.5" : "PM10"} · ` +
-      "Clasificación horaria estimada con puntos de corte EPA.";
-
     const departamentos = nombreSeleccionado
       ? (departamento ? [departamento] : [])
       : hora.departamentos;
+
+    titulo.textContent = nombreSeleccionado
+      ? `Resumen EPA: ${nombreSeleccionado}`
+      : "Resumen departamental por categorías EPA";
+
+    estado.textContent =
+      `${hora.time} UTC · ${pollutant === "PM25" ? "PM2.5" : "PM10"} · ` +
+      "Clasificación horaria orientativa; no es un AQI oficial horario.";
 
     if (!departamentos.length) {
       estado.textContent += " No hay datos para la selección.";
       return;
     }
 
-    const tabla = document.createElement("table");
-    tabla.style.width = "100%";
-    tabla.style.borderCollapse = "collapse";
+    const categoriasEPA = [
+      { nombre: "Bueno", color: "#00E400", texto: "#111111" },
+      { nombre: "Moderado", color: "#FFFF00", texto: "#111111" },
+      { nombre: "Insalubre para grupos sensibles", color: "#FF7E00", texto: "#111111" },
+      { nombre: "Insalubre", color: "#FF0000", texto: "#FFFFFF" },
+      { nombre: "Muy insalubre", color: "#8F3F97", texto: "#FFFFFF" },
+      { nombre: "Peligroso", color: "#7E0023", texto: "#FFFFFF" },
+      { nombre: "Fuera del rango AQI EPA", color: "#6B7280", texto: "#FFFFFF" }
+    ];
 
-    const encabezado = document.createElement("tr");
-    for (const texto of [
-      "Departamento", "Promedio (µg/m³)", "Máximo (µg/m³)",
-      "Celdas válidas", "Categoría predominante"
-    ]) {
-      const th = document.createElement("th");
-      th.textContent = texto;
-      th.style.textAlign = "left";
-      th.style.padding = "5px";
-      encabezado.appendChild(th);
-    }
-    tabla.appendChild(encabezado);
+    const totales = Object.fromEntries(categoriasEPA.map(c => [c.nombre, 0]));
+    let validos = 0;
+    let sumaPonderada = 0;
+    let maximo = null;
 
     for (const dep of departamentos) {
-      const dato = dep.contaminantes[infoVariable];
-      const categorias = dato.categorias || {};
-      const predominante = Object.entries(categorias)
-        .filter(([nombre]) => nombre !== "Sin datos")
-        .sort((a, b) => b[1] - a[1])[0];
+      const dato = dep.contaminantes?.[variable];
+      if (!dato) continue;
 
-      const tr = document.createElement("tr");
-      const valores = [
-        dep.nombre,
-        dato.promedio == null ? "Sin datos" : dato.promedio.toFixed(2),
-        dato.maximo == null ? "Sin datos" : dato.maximo.toFixed(2),
-        `${dato.puntos_validos} / ${dep.puntos_malla}`,
-        predominante && predominante[1] > 0
-          ? `${predominante[0]} (${dato.porcentajes[predominante[0]]}%)`
-          : "Sin clasificación"
-      ];
+      const n = Number(dato.puntos_validos) || 0;
+      validos += n;
 
-      for (const valor of valores) {
-        const td = document.createElement("td");
-        td.textContent = String(valor);
-        td.style.padding = "5px";
-        td.style.borderTop = "1px solid #ddd";
-        tr.appendChild(td);
+      if (n > 0 && dato.promedio != null && Number.isFinite(Number(dato.promedio))) {
+        sumaPonderada += Number(dato.promedio) * n;
       }
-      tabla.appendChild(tr);
 
-      if (nombreSeleccionado) {
-        const subtitulo = document.createElement("h4");
-        subtitulo.textContent = "Distribución por categoría";
-        contenido.appendChild(subtitulo);
+      if (dato.maximo != null && Number.isFinite(Number(dato.maximo))) {
+        maximo = maximo === null
+          ? Number(dato.maximo)
+          : Math.max(maximo, Number(dato.maximo));
+      }
 
-        for (const [categoria, cantidad] of Object.entries(categorias)) {
-          const fila = document.createElement("p");
-          const porcentaje = dato.porcentajes[categoria];
-          fila.textContent =
-            `${categoria}: ${cantidad} celdas` +
-            (porcentaje == null ? "" : ` (${porcentaje}%)`);
-          fila.style.margin = "4px 0";
-          contenido.appendChild(fila);
-        }
+      for (const categoria of categoriasEPA) {
+        totales[categoria.nombre] += Number(dato.categorias?.[categoria.nombre]) || 0;
       }
     }
 
-    contenido.prepend(tabla);
+    const promedio = validos > 0 ? sumaPonderada / validos : null;
+    const totalClasificado = Object.values(totales).reduce((a, b) => a + b, 0);
+
+    const resumen = document.createElement("div");
+    resumen.className = "epa-summary";
+
+    const metricas = document.createElement("div");
+    metricas.className = "epa-metrics";
+
+    const crearMetrica = (etiqueta, valor) => {
+      const caja = document.createElement("div");
+      caja.className = "epa-metric";
+      const nombre = document.createElement("span");
+      nombre.textContent = etiqueta;
+      const numero = document.createElement("strong");
+      numero.textContent = valor;
+      caja.append(nombre, numero);
+      metricas.appendChild(caja);
+    };
+
+    crearMetrica("Promedio (µg/m³)", promedio === null ? "Sin datos" : promedio.toFixed(2));
+    crearMetrica("Máximo (µg/m³)", maximo === null ? "Sin datos" : maximo.toFixed(2));
+    crearMetrica("Celdas válidas", validos.toLocaleString("es-PE"));
+
+    const rejilla = document.createElement("div");
+    rejilla.className = "epa-grid";
+
+    for (const categoria of categoriasEPA) {
+      const cantidad = totales[categoria.nombre];
+      const porcentaje = totalClasificado > 0 ? 100 * cantidad / totalClasificado : 0;
+
+      const tarjeta = document.createElement("div");
+      tarjeta.className = "epa-card";
+      tarjeta.style.backgroundColor = categoria.color;
+      tarjeta.style.color = categoria.texto;
+
+      const nombre = document.createElement("div");
+      nombre.className = "epa-card-name";
+      nombre.textContent = categoria.nombre;
+
+      const numero = document.createElement("div");
+      numero.className = "epa-card-number";
+      numero.textContent = cantidad.toLocaleString("es-PE");
+
+      const detalle = document.createElement("div");
+      detalle.className = "epa-card-percent";
+      detalle.textContent = `${porcentaje.toFixed(1)} %`;
+
+      const etiqueta = document.createElement("div");
+      etiqueta.className = "epa-card-caption";
+      etiqueta.textContent = "celdas";
+
+      tarjeta.append(nombre, numero, detalle, etiqueta);
+      rejilla.appendChild(tarjeta);
+    }
+
+    resumen.append(metricas, rejilla);
+    contenido.appendChild(resumen);
 
     const nota = document.createElement("p");
+    nota.className = "epa-note";
     nota.textContent =
-      "Nota: clasificación horaria orientativa. Los puntos de corte " +
-      "EPA para partículas se definen para promedios de 24 horas. " +
-      "No representa AQI oficial horario ni población expuesta.";
+      "Colores de referencia EPA. La clasificación mostrada es orientativa: " +
+      "los puntos de corte para partículas se basan en promedios de 24 horas, " +
+      "por lo que estos resultados horarios no constituyen un AQI oficial.";
     contenido.appendChild(nota);
   }
 
