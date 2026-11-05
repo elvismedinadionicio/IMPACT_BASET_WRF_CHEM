@@ -456,6 +456,187 @@ footer,
 }
 
 </style>
+
+<style id="aqi-right-layout">
+
+/* =========================================
+   ICARO - PANEL LATERAL DERECHO DE PELIGROS
+   ========================================= */
+
+.layout-principal {
+    display: grid !important;
+    grid-template-columns:
+        minmax(220px, 250px)
+        minmax(0, 1fr)
+        minmax(220px, 250px) !important;
+    gap: 14px;
+    align-items: start;
+    width: 100%;
+}
+
+.panel-filtros,
+.contenido-mapa,
+.panel-aqi {
+    min-width: 0;
+    width: 100%;
+}
+
+.contenido-mapa {
+    grid-column: 2;
+}
+
+.panel-aqi {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+.aqi-card {
+    background: #ffffff;
+    border: 1px solid #dce3e9;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.07);
+    position: sticky;
+    top: 12px;
+}
+
+.aqi-heading {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 8px;
+}
+
+.aqi-heading h2 {
+    font-size: 15px;
+    line-height: 1.35;
+    margin: 0;
+    color: #18212b;
+}
+
+.aqi-indicator {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 10px;
+    border-radius: 50%;
+    background: #e53935;
+}
+
+.aqi-description {
+    font-size: 11px;
+    line-height: 1.5;
+    color: #66727d;
+    margin: 0 0 14px;
+}
+
+.panel-aqi #legend {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch;
+    gap: 11px;
+    margin-top: 12px;
+}
+
+.panel-aqi .swatch {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 7px 8px;
+    background: #f7f9fb;
+    border-radius: 7px;
+}
+
+.panel-aqi .chip {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
+}
+
+.aqi-reference {
+    border-top: 1px solid #e5e9ed;
+    margin-top: 15px;
+    padding-top: 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #52616b;
+}
+
+.aqi-reference p {
+    margin: 5px 0 0;
+}
+
+#map {
+    width: 100% !important;
+}
+
+/* Pantallas medianas */
+@media (min-width: 801px) and (max-width: 1100px) {
+    .layout-principal {
+        grid-template-columns: 210px minmax(0, 1fr) !important;
+    }
+
+    .contenido-mapa {
+        grid-column: 2;
+    }
+
+    .panel-aqi {
+        grid-column: 1 / -1;
+        grid-row: auto;
+    }
+
+    .panel-aqi #legend {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .aqi-card {
+        position: static;
+    }
+}
+
+/* Tablets y celulares */
+@media (max-width: 800px) {
+    .layout-principal {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .panel-filtros,
+    .contenido-mapa,
+    .panel-aqi {
+        grid-column: 1;
+        grid-row: auto;
+        width: 100%;
+    }
+
+    .aqi-card {
+        position: static;
+    }
+
+    .panel-aqi #legend {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #map {
+        height: 60vh;
+        min-height: 350px;
+    }
+}
+
+@media (max-width: 480px) {
+    .panel-aqi #legend {
+        grid-template-columns: 1fr;
+    }
+
+    .aqi-card {
+        padding: 12px;
+    }
+}
+
+</style>
+
 </head>
 <body>
 
@@ -512,8 +693,6 @@ footer,
   <div id="map"></div>
 
   <section class="info">
-    <strong id="legendTitle">Leyenda</strong>
-    <div id="legend"></div>
     <p id="details">Selecciona una celda para consultar sus valores.</p>
     <p id="aqiStatus" class="warning"></p>
     <section id="departmentSummary" aria-live="polite">
@@ -526,6 +705,24 @@ footer,
   </section>
 
     </div>
+
+    <aside class="panel-aqi" aria-label="Clasificación de peligros AQI">
+      <section class="aqi-card">
+        <div class="aqi-heading">
+          <span class="aqi-indicator"></span>
+          <h2 id="legendTitle">Categorías de peligro AQI</h2>
+        </div>
+        <p class="aqi-description">
+          Clasificación de la calidad del aire según el índice AQI.
+        </p>
+        <div id="legend"></div>
+        <div class="aqi-reference">
+          <strong>Interpretación</strong>
+          <p>La categoría representa el nivel de riesgo asociado
+          al valor AQI estimado para el contaminante seleccionado.</p>
+        </div>
+      </section>
+    </aside>
   </div>
 
   <footer></footer>
