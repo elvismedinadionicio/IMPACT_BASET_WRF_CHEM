@@ -615,6 +615,102 @@ footer,
 
 </style>
 
+
+<style id="exposure-matrix-style">
+.exposure-matrix {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 14px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #dce3e9;
+  border-radius: 11px;
+  box-shadow: 0 1px 5px #0001;
+  min-width: 0;
+}
+.exposure-matrix-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.exposure-matrix-heading h2 {
+  margin: 0 0 5px;
+  font-size: 17px;
+  color: #17324d;
+}
+.exposure-matrix-heading p {
+  margin: 0;
+  color: #536575;
+  font-size: 12px;
+}
+.exposure-matrix-unit {
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #edf3f8;
+  color: #294b68;
+  font-size: 11px;
+  font-weight: 700;
+}
+.exposure-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e1e7ec;
+  border-radius: 7px;
+}
+.exposure-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: collapse;
+  font-size: 11px;
+  text-align: center;
+}
+.exposure-table th {
+  padding: 10px 7px;
+  background: #edf2f6;
+  color: #263e52;
+  font-weight: 750;
+  line-height: 1.35;
+  border-bottom: 1px solid #d7e0e8;
+}
+.exposure-table th:first-child,
+.exposure-table td:first-child {
+  text-align: left;
+  min-width: 175px;
+}
+.exposure-table td {
+  padding: 11px 7px;
+  color: #263746;
+  border-bottom: 1px solid #e8edf1;
+  white-space: nowrap;
+}
+.exposure-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.exposure-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+.exposure-table td:first-child {
+  font-weight: 700;
+}
+.exposure-matrix-note,
+.exposure-matrix-source {
+  margin: 11px 0 0;
+  color: #526273;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.exposure-matrix-source {
+  margin-top: 5px;
+  color: #71808d;
+}
+@media (max-width: 600px) {
+  .exposure-matrix { padding: 10px; }
+  .exposure-matrix-heading h2 { font-size: 15px; }
+}
+</style>
+
 </head>
 <body>
 
@@ -669,6 +765,48 @@ footer,
     <p id="details">Selecciona una celda para consultar sus valores.</p>
     <p id="aqiStatus" class="warning"></p>
   </section>
+
+
+<section id="exposureMatrix" class="exposure-matrix">
+  <div class="exposure-matrix-heading">
+    <div>
+      <h2>Elementos expuestos por categoría de riesgo</h2>
+      <p id="exposureMatrixSubtitle">Cargando información...</p>
+    </div>
+    <span class="exposure-matrix-unit">Perú</span>
+  </div>
+
+  <div class="exposure-table-wrap">
+    <table class="exposure-table">
+      <thead>
+        <tr>
+          <th>ELEMENTOS EXPUESTOS</th>
+          <th>BUENO</th>
+          <th>MODERADO</th>
+          <th>INSALUBRE PARA<br>GRUPOS SENSIBLES</th>
+          <th>INSALUBRE</th>
+          <th>MUY INSALUBRE</th>
+          <th>PELIGROSO</th>
+        </tr>
+      </thead>
+      <tbody id="exposureMatrixBody">
+        <tr><td colspan="7">Cargando matriz...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="exposure-matrix-note">
+    <strong>Nota:</strong> las categorías representan una estimación horaria
+    basada en la concentración del contaminante seleccionado. No constituyen
+    un AQI oficial horario. Los puntos de corte utilizados requieren
+    promedios de 24 horas para una evaluación oficial. Los valores N/D
+    indican que no se dispone de la capa geográfica necesaria.
+  </p>
+  <p class="exposure-matrix-source">
+    Cobertura: grilla WRF dentro del territorio peruano.
+    Población: centros poblados INEI 2017. Red vial: capa departamental 2018.
+  </p>
+</section>
 
     </div>
 
@@ -790,8 +928,110 @@ footer,
 
   // Renderizado interpolado para concentración; los datos originales
   // permanecen intactos y siguen disponibles en los popups por celda.
+
+  let exposureMatrixRows = [];
+
+  function renderExposureMatrix() {
+    const body = $("exposureMatrixBody");
+    const subtitle = $("exposureMatrixSubtitle");
+
+    if (!body || !subtitle || !currentData) return;
+
+    const selectedPollutant = $("pollutant").value;
+    const pollutantName = selectedPollutant === "PM25" ? "PM2.5" : "PM10";
+    const selectedTime = currentData.time;
+
+    const hourRows = exposureMatrixRows.filter(row =>
+      row.hora_utc === selectedTime &&
+      row.contaminante === pollutantName
+    );
+
+    subtitle.textContent =
+      pollutantName + " | " + selectedTime.replace("T", " ") + " UTC" +
+      " | Clasificación horaria estimada";
+
+    if (!hourRows.length) {
+      body.innerHTML =
+        '<tr><td colspan="7">No hay registros para esta hora y contaminante.</td></tr>';
+      return;
+    }
+
+    const categories = [
+      "Bueno",
+      "Moderado",
+      "Insalubre para grupos sensibles",
+      "Insalubre",
+      "Muy insalubre",
+      "Peligroso"
+    ];
+
+    const elements = [
+      "POBLACIÓN",
+      "INSTITUCIÓN EDUCATIVA",
+      "CENTRO DE SALUD",
+      "RED VIAL",
+      "ÁREAS AGRÍCOLAS"
+    ];
+
+    const units = {
+      "POBLACIÓN": "hab.",
+      "INSTITUCIÓN EDUCATIVA": "Und.",
+      "CENTRO DE SALUD": "Und.",
+      "RED VIAL": "km",
+      "ÁREAS AGRÍCOLAS": "ha"
+    };
+
+    const numberFormat = new Intl.NumberFormat("es-PE", {
+      maximumFractionDigits: 2
+    });
+
+    function formatValue(value, element) {
+      if (value === null || value === undefined || value === "N/D") {
+        return "N/D";
+      }
+
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "N/D";
+
+      if (element === "POBLACIÓN" ||
+          element === "INSTITUCIÓN EDUCATIVA" ||
+          element === "CENTRO DE SALUD") {
+        return new Intl.NumberFormat("es-PE", {
+          maximumFractionDigits: 0
+        }).format(number);
+      }
+
+      return numberFormat.format(number);
+    }
+
+    body.replaceChildren();
+
+    for (const element of elements) {
+      const record = hourRows.find(
+        row => row.elemento_expuesto === element
+      );
+
+      const tr = document.createElement("tr");
+
+      const nameCell = document.createElement("td");
+      nameCell.textContent = element + " (" + units[element] + ")";
+      tr.appendChild(nameCell);
+
+      for (const category of categories) {
+        const td = document.createElement("td");
+        td.textContent = record
+          ? formatValue(record[category], element)
+          : "N/D";
+        tr.appendChild(td);
+      }
+
+      body.appendChild(tr);
+    }
+  }
+
   function render() {
     if (!manifest || !currentData) return;
+    renderExposureMatrix();
 
     currentLayer.clearLayers();
 
@@ -980,6 +1220,20 @@ footer,
       const response = await fetch("data/wrfchem/manifest.json");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       manifest = await response.json();
+
+      try {
+        const matrixResponse = await fetch(
+          "data/wrfchem/matriz_exposicion_horaria.json"
+        );
+        if (!matrixResponse.ok) {
+          throw new Error("HTTP " + matrixResponse.status);
+        }
+        exposureMatrixRows = await matrixResponse.json();
+      } catch (matrixError) {
+        console.error("Error al cargar matriz de exposición:", matrixError);
+        exposureMatrixRows = [];
+      }
+
 
       if (!manifest.times || !manifest.times.length) {
         throw new Error("El manifest no contiene horas disponibles.");
